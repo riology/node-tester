@@ -1,0 +1,9 @@
+node_modules/
+data/sources.json
+outputs/*
+!outputs/.gitkeep
+bin/sing-box
+bin/xray
+bin/*.exe
+*.log
+.DS_Store

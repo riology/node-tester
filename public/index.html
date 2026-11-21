@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>node-tester — local proxy node tester</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--text:#111;--muted:#6b6b66;--accent:#4a6e00;--lime:#c8f25a;--border:#e3e3dd;--bad:#b3261e;--ok:#1e7a34}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1b16;--card:#24261f;--text:#f2f2ec;--muted:#a9a99f;--accent:#c8f25a;--border:#3a3d33;--bad:#ff8a80;--ok:#7bd88f}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:860px;margin:0 auto;padding:16px 14px 48px}
+h1{font-size:22px;margin:8px 0 2px}h2{font-size:16px;margin:0 0 10px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px}
+textarea,input[type=text],input[type=url],input[type=number]{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px}
+textarea{min-height:110px;font-family:ui-monospace,monospace;font-size:12px}
+label{font-size:13px;color:var(--muted);display:block;margin:8px 0 4px}
+button{min-height:48px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);padding:10px 14px;font-size:14px;cursor:pointer}
+button.primary{background:var(--lime);color:#111;border-color:var(--lime);font-weight:700;width:100%;font-size:16px}
+button.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.small{font-size:12px;color:var(--muted)}
+#progressWrap{display:none;margin-top:12px}
+progress{width:100%;height:18px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+th{cursor:pointer;white-space:nowrap}
+.alive{color:var(--ok);font-weight:700}.dead{color:var(--bad);font-weight:700}
+.err{color:var(--bad);font-size:11px}
+.mono{font-family:ui-monospace,monospace;word-break:break-all}
+#qrBox svg{max-width:220px;height:auto;background:#fff;padding:6px;border-radius:8px}
+.srcstat{font-size:12px;border-top:1px dashed var(--border);padding:6px 0}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>⚡ node-tester</h1>
+<div class="sub">Runs 100% locally — tests use <b>your</b> network. <span id="health"></span></div>
+
+<section class="card">
+  <h2>1 · Sources</h2>
+  <label>Paste nodes / base64 subscription / Clash YAML / JSON</label>
+  <textarea id="rawInput" placeholder="vless://…&#10;trojan://…&#10;hy2://…"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="pasteBtn" type="button">📋 Paste from clipboard</button>
+    <label style="flex:1;margin:0">
+      <span class="small">Load from file</span>
+      <input type="file" id="fileInput" accept=".txt,.json,.yaml,.yml,.conf">
+    </label>
+  </div>
+  <label>Subscription URLs (one per line)</label>
+  <textarea id="subUrls" style="min-height:64px" placeholder="https://provider.example/sub/…"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="fetchBtn" type="button" class="accent">Fetch subscriptions</button>
+    <button id="saveSrcBtn" type="button">Save URLs as sources</button>
+  </div>
+  <div id="fetchInfo"></div>
+  <div id="savedSources" class="small"></div>
+</section>
+
+<section class="card">
+  <h2>2 · Settings</h2>
+  <div class="grid">
+    <div><label>Speed-test top N by ping</label><input type="number" id="stage2Limit" value="50" min="0"></div>
+    <div><label>Speed payload (MB)</label><input type="number" id="payloadMB" value="5" min="1" max="100"></div>
+    <div><label>Latency concurrency</label><input type="number" id="latencyConcurrency" value="10" min="1" max="30"></div>
+    <div><label>Speed concurrency</label><input type="number" id="speedConcurrency" value="3" min="1" max="10"></div>
+    <div><label>Stop after N working (0 = all)</label><input type="number" id="targetCount" value="0" min="0"></div>
+    <div><label>Latency timeout (seconds)</label><input type="number" id="timeoutSec" value="6" min="2" max="30"></div>
+  </div>
+  <div style="margin-top:14px"><button id="testBtn" type="button" class="primary">▶ Test nodes</button></div>
+  <div id="progressWrap">
+    <progress id="bar" value="0" max="100"></progress>
+    <div id="progressText" class="small"></div>
+  </div>
+</section>
+
+<section class="card hidden" id="resultsCard">
+  <h2>3 · Results</h2>
+  <div class="row">
+    <input type="text" id="filterText" placeholder="Filter by name / protocol…">
+  </div>
+  <div style="overflow-x:auto;margin-top:8px">
+  <table id="resultsTable">
+    <thead><tr><th>Status</th><th>Protocol</th><th>Name</th><th data-sort="latencyMs">Ping ms ↕</th><th data-sort="mbps">Mbps ↕</th><th>Error</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card hidden" id="outputCard">
+  <h2>4 · Ready output</h2>
+  <label>Your live tested subscription (paste into AVX / Hiddify / v2rayNG)</label>
+  <input type="text" id="subLink" readonly>
+  <div class="row" style="margin-top:8px">
+    <button id="copyTop15" type="button">Copy Top 15 (base64)</button>
+    <button id="copyAll" type="button">Copy All Working</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button data-dl="top_15_speedy_nodes.txt" type="button">⬇ top_15.txt</button>
+    <button data-dl="all_working_base64.txt" type="button">⬇ all base64</button>
+    <button data-dl="singbox.json" type="button">⬇ sing-box JSON</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button data-dl="clash.yaml" type="button">⬇ Clash YAML</button>
+    <button data-dl="xray.json" type="button">⬇ Xray JSON</button>
+    <button data-dl="raw_uris.txt" type="button">⬇ raw URIs</button>
+  </div>
+  <div id="qrBox" style="margin-top:12px"></div>
+  <div id="outputNote" class="small"></div>
+</section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastResults = [], lastOutputs = null, sortKey = 'mbps', sortDir = -1;
+
+async function health(){
+  try{ const r = await (await fetch('/api/health')).json();
+    $('health').textContent = `sing-box: ${r.binaries.singbox?'found':'NOT FOUND'} · xray: ${r.binaries.xray?'found':'NOT FOUND'}`;
+  }catch(e){ $('health').textContent = 'server unreachable'; }
+}
+health();
+
+$('pasteBtn').onclick = async () => {
+  try{ const t = await navigator.clipboard.readText(); if(t){ $('rawInput').value += ($('rawInput').value?'\n':'') + t; } }
+  catch(e){ alert('Clipboard read not allowed here — long-press and paste into the box instead.'); $('rawInput').focus(); }
+};
+$('fileInput').onchange = async (e) => {
+  const f = e.target.files[0]; if(!f) return;
+  $('rawInput').value = await f.text();
+};
+function subUrlList(){ return $('subUrls').value.split('\n').map(s=>s.trim()).filter(Boolean); }
+
+$('fetchBtn').onclick = async () => {
+  const urls = subUrlList(); if(!urls.length) return alert('Add at least one subscription URL');
+  $('fetchInfo').innerHTML = '<div class="srcstat">Fetching…</div>';
+  const r = await (await fetch('/api/fetch-sub',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({urls})})).json();
+  if(!r.ok) return $('fetchInfo').innerHTML = `<div class="srcstat err">${r.error}</div>`;
+  $('fetchInfo').innerHTML = r.sources.map(s=>{
+    let extra='';
+    if(s.userinfo){ const u=s.userinfo; extra = ` · used ${u.usedPercent??'?'}%${u.expireDate?` · expires ${u.expireDate.slice(0,10)}`:''}`; }
+    return `<div class="srcstat"><b>${s.profileTitle||s.source}</b> — ${s.nodeCount} nodes (${s.format})${extra}${s.fetchError?` <span class="err">${s.fetchError}</span>`:''}</div>`;
+  }).join('') + `<div class="srcstat">Total unique nodes ready to test: <b>${r.nodeCount}</b> — press Test (URLs are fetched again inside the test).</div>`;
+};
+$('saveSrcBtn').onclick = async () => {
+  for(const url of subUrlList()) await fetch('/api/sources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  loadSaved();
+};
+async function loadSaved(){
+  const r = await (await fetch('/api/sources')).json();
+  $('savedSources').innerHTML = r.sources.length ? 'Saved sources: ' + r.sources.map(s=>`${s.name||s.source}`).join(' · ') : '';
+}
+loadSaved();
+
+function settings(){
+  return { stage2Limit:+$('stage2Limit').value||50, payloadBytes:(+$('payloadMB').value||5)*1024*1024,
+    latencyConcurrency:+$('latencyConcurrency').value||10, speedConcurrency:+$('speedConcurrency').value||3,
+    targetCount:+$('targetCount').value||0, timeoutMs:(+$('timeoutSec').value||6)*1000 };
+}
+
+function renderTable(){
+  const f = $('filterText').value.toLowerCase();
+  const rows = lastResults.filter(r=>!f || (r.remark+' '+r.protocol).toLowerCase().includes(f))
+    .sort((a,b)=>{ const x=a[sortKey]??-1, y=b[sortKey]??-1; return (x-y)*sortDir; });
+  document.querySelector('#resultsTable tbody').innerHTML = rows.map(r=>
+    `<tr><td class="${r.status==='alive'?'alive':'dead'}">${r.status}</td><td>${r.protocol}</td><td>${r.remark||''}<div class="small mono">${r.host}:${r.port}</div></td><td>${r.latencyMs??'—'}</td><td>${r.mbps||'—'}</td><td class="err">${r.error||''}</td></tr>`).join('');
+}
+document.querySelectorAll('th[data-sort]').forEach(th=> th.onclick=()=>{ const k=th.dataset.sort; if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=-1;} renderTable(); });
+$('filterText').oninput = renderTable;
+
+function showOutputs(outputs, written){
+  lastOutputs = outputs;
+  $('outputCard').classList.remove('hidden');
+  const link = `${location.origin}/sub/tested`;
+  $('subLink').value = link;
+  $('outputNote').textContent = `Files written on this device: ${(written||[]).join(', ')}`;
+  fetch('/api/qr?text='+encodeURIComponent(link)).then(r=>r.json()).then(r=>{ if(r.ok) $('qrBox').innerHTML = '<div class="small">Scan to import the tested subscription:</div>'+r.svg; });
+}
+async function copyText(t, btn){
+  try{ await navigator.clipboard.writeText(t||''); const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>btn.textContent=o,1500); }
+  catch(e){ prompt('Copy this:', t||''); }
+}
+$('copyTop15').onclick = (e)=> copyText(lastOutputs && lastOutputs.top15Base64, e.target);
+$('copyAll').onclick = (e)=> copyText(lastOutputs && lastOutputs.base64, e.target);
+document.querySelectorAll('[data-dl]').forEach(b=> b.onclick=()=>{ location.href='/api/outputs/'+b.dataset.dl; });
+
+$('testBtn').onclick = async () => {
+  const body = { rawInput: $('rawInput').value, urls: subUrlList(), settings: settings() };
+  $('progressWrap').style.display='block'; $('bar').value=0; $('progressText').textContent='Starting…';
+  const r = await (await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(!r.ok && !r.jobId) return alert(r.error||'failed to start');
+  const es = new EventSource(`/api/test/${r.jobId}/events`);
+  es.addEventListener('progress', (ev)=>{
+    const p = JSON.parse(ev.data);
+    const pct = p.total? Math.round(p.done/p.total*100):0;
+    $('bar').value = pct;
+    $('progressText').textContent = `${p.phase}: ${p.done}/${p.total} · working so far: ${p.passed}`;
+  });
+  es.addEventListener('done', async (ev)=>{
+    es.close();
+    const res = await (await fetch(`/api/test/${r.jobId}/results`)).json();
+    lastResults = res.results||[];
+    $('resultsCard').classList.remove('hidden');
+    renderTable();
+    showOutputs(res.outputs, res.written);
+    $('progressText').textContent = `Done — ${lastResults.filter(x=>x.status==='alive').length}/${lastResults.length} working`;
+  });
+  es.addEventListener('error', (ev)=>{ try{ const d=JSON.parse(ev.data); $('progressText').textContent='Error: '+d.error; }catch(e){} });
+};
+</script>
+</body>
+</html>
