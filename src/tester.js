@@ -77,7 +77,12 @@ function buildSingBoxConfig(node, localPort) {
       { type: 'mixed', tag: 'mixed-in', listen: '127.0.0.1', listen_port: localPort },
     ],
     outbounds: [nodeOut, { type: 'direct', tag: 'direct' }],
-    route: { final: nodeOut.tag, auto_detect_interface: true },
+    // NOTE: no auto_detect_interface here — on Android (Termux) sing-box
+    // enforces the interface monitor when it is set, and Android >= 11 bans
+    // the netlink socket it needs for app UIDs, so the core dies at startup
+    // with "create network monitor: netlink socket in Android is banned".
+    // A one-node SOCKS test does not need interface detection at all.
+    route: { final: nodeOut.tag },
   };
 }
 

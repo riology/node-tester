@@ -124,6 +124,10 @@ async function main() {
       const expectedType = { ss: 'shadowsocks', hy2: 'hysteria2' }[proto] || proto;
       assert.strictEqual(nodeOut.type, expectedType);
       assert.strictEqual(parsed.inbounds[0].listen_port, 29999);
+      // Android/Termux regression: auto_detect_interface makes sing-box
+      // enforce a netlink interface monitor that Android bans for app UIDs,
+      // killing the core at startup ("create network monitor" FATAL).
+      assert(!parsed.route.auto_detect_interface, 'route must not set auto_detect_interface');
     });
   }
   for (const proto of ['vless', 'vmess', 'ss', 'trojan']) {
