@@ -51,7 +51,7 @@ npm --version
 ## Step 2 — Get node-tester
 Download the project ZIP from GitHub and extract it, or clone it:
 ```bat
-git clone <https://github.com/riology/node-tester.git> node-tester
+git clone https://github.com/riology/node-tester.git
 cd node-tester
 npm install
 ```
@@ -106,7 +106,7 @@ pkg install -y git nodejs
 ## Step 2 — Get node-tester
 Clone it (recommended — easy to update later with `git pull`):
 ```sh
-git clone <https://github.com/riology/node-tester.git> node-tester
+git clone https://github.com/riology/node-tester.git
 cd node-tester
 ```
 Or, if you downloaded the ZIP on the phone instead: run `termux-setup-storage` once, copy the ZIP to your Downloads, then in Termux:
