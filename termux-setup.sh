@@ -15,6 +15,11 @@ npm install
 mkdir -p bin
 FAILED=0
 
+# Termux/Android: the literal /tmp is not writable — use mktemp, which
+# honours $TMPDIR ($PREFIX/tmp) inside Termux.
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "$WORK_DIR"' EXIT
+
 # --- sing-box (primary engine, supports ALL protocols incl. hysteria2/tuic) ---
 # Official releases: https://github.com/SagerNet/sing-box/releases
 # NOTE: sing-box is GPL-3.0. It is downloaded here as a separate standalone
@@ -22,11 +27,11 @@ FAILED=0
 SINGBOX_VER="1.14.4"
 if [ ! -x bin/sing-box ]; then
   echo "==> Downloading sing-box v${SINGBOX_VER} (android-arm64)…"
-  rm -f /tmp/sing-box.tar.gz
-  if curl -fL -o /tmp/sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VER}/sing-box-${SINGBOX_VER}-android-arm64.tar.gz"; then
-    rm -rf /tmp/sing-box-extract && mkdir -p /tmp/sing-box-extract
-    tar -xzf /tmp/sing-box.tar.gz -C /tmp/sing-box-extract
-    FOUND=$(find /tmp/sing-box-extract -name 'sing-box' -type f | head -n 1)
+  rm -f "$WORK_DIR/sing-box.tar.gz"
+  if curl -fL -o "$WORK_DIR/sing-box.tar.gz" "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VER}/sing-box-${SINGBOX_VER}-android-arm64.tar.gz"; then
+    rm -rf "$WORK_DIR/sing-box-extract" && mkdir -p "$WORK_DIR/sing-box-extract"
+    tar -xzf "$WORK_DIR/sing-box.tar.gz" -C "$WORK_DIR/sing-box-extract"
+    FOUND=$(find "$WORK_DIR/sing-box-extract" -name 'sing-box' -type f | head -n 1)
     if [ -n "$FOUND" ]; then cp "$FOUND" bin/sing-box; fi
   else
     echo "WARN: sing-box download failed (network or release moved)."
@@ -39,11 +44,11 @@ fi
 # publishes a new version.
 if [ ! -x bin/xray ]; then
   echo "==> Downloading Xray (android-arm64, latest)…"
-  rm -f /tmp/xray.zip
-  if curl -fL -o /tmp/xray.zip "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-android-arm64-v8a.zip"; then
-    rm -rf /tmp/xray-bin && mkdir -p /tmp/xray-bin
-    unzip -o /tmp/xray.zip -d /tmp/xray-bin >/dev/null
-    if [ -f /tmp/xray-bin/xray ]; then cp /tmp/xray-bin/xray bin/xray; fi
+  rm -f "$WORK_DIR/xray.zip"
+  if curl -fL -o "$WORK_DIR/xray.zip" "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-android-arm64-v8a.zip"; then
+    rm -rf "$WORK_DIR/xray-bin" && mkdir -p "$WORK_DIR/xray-bin"
+    unzip -o "$WORK_DIR/xray.zip" -d "$WORK_DIR/xray-bin" >/dev/null
+    if [ -f "$WORK_DIR/xray-bin"/xray ]; then cp "$WORK_DIR/xray-bin"/xray bin/xray; fi
   else
     echo "WARN: Xray download failed (network or release moved)."
   fi
